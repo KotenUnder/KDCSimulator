@@ -1,3 +1,205 @@
-import json
+import math
+import KDCTables
+
+class UShort:
+    """
+    A class to represent an unsigned short integer (0 to 65535).
+    """
+
+    def __init__(self, value: int):
+        """
+        Initializes the UShort instance with a given integer value.
+        
+        Parameters:
+        value (int): The integer value to initialize the UShort instance.
+        
+        Raises:
+        ValueError: If the value is not in the range 0 to 65535.
+        """
+        if not (0 <= value <= 65535):
+            raise ValueError("Value must be between 0 and 65535.")
+        self.value = value
+
+    def __int__(self) -> int:
+        """
+        Returns the integer representation of the UShort instance.
+        
+        Returns:
+        int: The integer value of the UShort instance.
+        """
+        return self.value
+
+def multiple_32768(x_: int, y_: int) -> int:
+    """
+    Multiplies two integers and returns the result.
+    
+    Parameters:
+    x_ (int): The first integer to multiply.
+    y_ (int): The second integer to multiply.
+    
+    Returns:
+    int: The product of x_ and y_.
+    """
+    return math.floor(x_ * y_ / 32768)
 
 
+def round_off(x_: float) -> int:
+    """
+    四捨五入する。(銀行員のround to evenでなく、0.5は常に切り上げる)
+    
+    Parameters:
+    x_ (float): The float to round off.
+    
+    Returns:
+    int: The rounded integer.
+    """
+    return math.floor(x_ + 0.5)
+
+
+def sine_kb(angle_: int) -> int:
+    """
+    Computes the sine of a given angle and returns the result.
+    
+    Parameters:
+    angle_ (int): The angle in degrees.
+    
+    Returns:
+    int: The sine of the angle.
+    """
+    return KDCTables.KDC_sine_table[angle_ % 360]
+
+def cosine_kb(angle_: int) -> int:
+    """
+    Computes the cosine of a given angle and returns the result.
+    
+    Parameters:
+    angle_ (int): The angle in degrees.
+    
+    Returns:
+    int: The cosine of the angle.
+    """
+    return KDCTables.KDC_sine_table[(angle_ + 90) % 360]
+
+def arctan_kb(x_: int, y_: int) -> int:
+    """
+    Computes the arctangent of a given integer and returns the result.
+    
+    Parameters:
+    x_ (int): The integer for which to compute the arctangent.
+    y_ (int): The integer for which to compute the arctangent.
+    
+    Returns:
+    int: The arctangent of x_. 0<=x<=359
+    """
+    # X, Yが0の時の処理
+    if x_ == 0 and y_ == 0:
+        return 0
+    elif x_ == 0:
+        return 90 if y_ > 0 else 270
+    elif y_ == 0:
+        return 0 if x_ > 0 else 180
+    # |X| = |Y|の時の処理
+    if x_ == y_:
+        return 45 if x_ > 0 else 225
+    elif x_ == -y_:
+        return 315 if x_ > 0 else 135
+
+    # 一般角の場合の処理
+    absx = abs(x_)
+    absy = abs(y_)
+    # 小さい方を256倍して大きい方で割った時の商を求める
+    if absx > absy:
+        base_angle = 0 if x_ > 0 else 180
+        ratio = (absy * 256) // absx
+        angle_offset = KDCTables.KDC_arctan_table[ratio]
+        # X, Y符号一致ならbaseに加える、逆ならbaseから引く 
+        if x_ * y_ > 0:
+            angle = base_angle + angle_offset
+        else:
+            angle = base_angle - angle_offset
+    else:
+        base_angle = 90 if y_ > 0 else 270
+        ratio = (absx * 256) // absy
+        angle_offset = KDCTables.KDC_arctan_table[ratio]
+        # X, Y符号一致ならbaseから引く、逆ならbaseに加える
+        if x_ * y_ > 0:
+            angle = base_angle - angle_offset
+        else:
+            angle = base_angle + angle_offset
+
+    # angleを0-359の範囲に収める
+    return angle % 360
+
+def hex_to_int(hex_str: str) -> int:
+    """
+    Converts a hexadecimal string to an integer.
+    
+    Parameters:
+    hex_str (str): The hexadecimal string to convert.
+    
+    Returns:
+    int: The integer representation of the hexadecimal string.
+    """
+    bit_length = len(hex_str) * 4
+    # 10進数の整数に変換
+    int_val = int(hex_str, 16)
+    # 最上位ビットが立っているか判定（負の数かどうか）
+    if int_val & (1 << (bit_length - 1)):
+        int_val -= 1 << bit_length
+    return int_val
+
+if __name__ == "__main__":
+    # Example usage
+    mx = 0x20CC
+    my = 0x5506
+    mz = hex_to_int("BA66")
+    vx = hex_to_int("FF02")
+    vy = 0x0896
+    vz = hex_to_int("FAEE")
+
+    # 衝突サンプル
+    mx = hex_to_int("B7D0")
+    my = hex_to_int("EB04")
+    mz = 0
+    vx = 0x09AA
+    vy = 0x09AA
+    vz = 0
+
+    theta_yz = arctan_kb(mz, my)
+    sine_theta_yz = sine_kb(theta_yz)
+    cosine_theta_yz = cosine_kb(theta_yz)
+
+    # 斜辺TBの長さを計算する
+    tb_y = multiple_32768(my, sine_theta_yz) if my >= 0 else -multiple_32768(-my, sine_theta_yz)
+    tb_z = multiple_32768(mz, cosine_theta_yz) if mz >= 0 else -multiple_32768(-mz, cosine_theta_yz)
+    tb_len = tb_y + tb_z
+
+    # 三角形TBOでθx'(角BTO)を求める
+    theta_x1 = arctan_kb(tb_len, mx)
+    sine_theta_x1 = sine_kb(theta_x1)
+    cosine_theta_x1 = cosine_kb(theta_x1)
+
+    # 正規化法線ベクトルN(nx, ny, nz)を計算する
+    nx = sine_theta_x1
+    ny = multiple_32768(cosine_theta_x1, sine_theta_yz) if cosine_theta_yz >= 0 else -multiple_32768(cosine_theta_x1, -sine_theta_yz)
+    nz = multiple_32768(cosine_theta_x1, cosine_theta_yz) if cosine_theta_yz >= 0 else -multiple_32768(cosine_theta_x1, -cosine_theta_yz)
+
+    # 内積k = N・vを計算する
+    nvx = multiple_32768(nx, vx) if vx >= 0 else -multiple_32768(nx, -vx)
+    nvy = multiple_32768(ny, vy) if vy >= 0 else -multiple_32768(ny, -vy)
+    nvz = multiple_32768(nz, vz) if vz >= 0 else -multiple_32768(nz, -vz)
+
+    k = nvx + nvy + nvz
+
+    # k N (=速度の相手方向成分)を計算する
+    if k >= 0:
+        rx = multiple_32768(k, nx)
+        ry = multiple_32768(k, ny)
+        rz = multiple_32768(k, nz)
+    else:
+        rx = -multiple_32768(-k, nx)
+        ry = -multiple_32768(-k, ny)
+        rz = -multiple_32768(-k, nz)
+
+    print()
+    
