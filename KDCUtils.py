@@ -2,6 +2,51 @@ import math
 import KDCTables
 import json
 
+
+class HoleData:
+    def __init__(self, width_x_: int, width_y_:int, height_table_: list, terrain_table_: list,
+                 bumper_table_: list, object_table_: list):
+        self._width_x = width_x_
+        self._width_y = width_y_
+        self._height_table = height_table_.copy()
+        self._terrain_table = terrain_table_.copy()
+        self._bumper_table = bumper_table_.copy()
+        self._object_table = object_table_.copy()
+        pass
+
+    def _checkRange(self, x_: int, y_: int) -> bool:
+        return (x_ >= 0) and (x_ < self._width_x) and (y_ >= 0) and (y_ < self._width_y)
+
+    def getObject(self, x_: int, y_: int) -> int:
+        # 範囲外ならオブジェクトなし
+        if self._checkRange(x_, y_):
+            return self._object_table[self._width_x * y_ + x_]
+        else:
+            return 0
+
+    def getTerrain(self, x_: int, y_: int) -> int:
+        # 範囲外ならオブジェクトなし
+        if self._checkRange(x_, y_):
+            return self._terrain_table[self._width_x * y_ + x_]
+        else:
+            return 0
+
+    def getHeight(self, x_: int, y_: int) -> int:
+        # 範囲外なら高さ0
+        if self._checkRange(x_, y_):
+            return 0
+        else:
+            return 1
+
+
+def get_slopeId_from_terrainId(terrain_id_: int, inblock_id_: int) -> int:
+    # 範囲チェック
+    if terrain_id_ >= 0 and terrain_id_ <= 27 and inblock_id_ >= 0 and inblock_id_ <= 3:
+        return KDCTables.KDC_slope_table[terrain_id_][inblock_id_]
+    else:
+        raise ValueError(f"terrain{terrain_id_} inblock{inblock_id_}")
+
+
 class UShort:
     """
     A class to represent an unsigned short integer (0 to 65535).
