@@ -47,6 +47,18 @@ def get_slopeId_from_terrainId(terrain_id_: int, inblock_id_: int) -> int:
         raise ValueError(f"terrain{terrain_id_} inblock{inblock_id_}")
 
 
+def get_zoffset_fullslope(slope_id_: int, inblock_x_: int, inblock_y_: int) -> int:
+    zoffset_index = 0
+    # 最低点からの水平座標の差を求める。
+    if slope_id_ == 3:
+        zoffset_index += 32767 - inblock_x_
+
+    # 斜面上Z座標テーブル用インデックスの計算
+    zoffset_index = zoffset_index // 128
+
+    return KDCTables.KDC_Zoffset_table[zoffset_index]
+
+
 class UShort:
     """
     A class to represent an unsigned short integer (0 to 65535).
@@ -146,7 +158,7 @@ def ground_info(kirby_info_: json, hole_info_: json) -> json:
     pass
 
 
-def sine_kb(angle_: int) -> int:
+def sine_kdc(angle_: int) -> int:
     """
     Computes the sine of a given angle and returns the result.
     
@@ -158,7 +170,7 @@ def sine_kb(angle_: int) -> int:
     """
     return KDCTables.KDC_sine_table[angle_ % 360]
 
-def cosine_kb(angle_: int) -> int:
+def cosine_kdc(angle_: int) -> int:
     """
     Computes the cosine of a given angle and returns the result.
     
@@ -170,7 +182,7 @@ def cosine_kb(angle_: int) -> int:
     """
     return KDCTables.KDC_sine_table[(angle_ + 90) % 360]
 
-def arctan_kb(x_: int, y_: int) -> int:
+def arctan_kdc(x_: int, y_: int) -> int:
     """
     Computes the arctangent of a given integer and returns the result.
     
@@ -223,15 +235,15 @@ def arctan_kb(x_: int, y_: int) -> int:
 
 def friction(friction_coefficient_: int, movement_angle_: int) -> int:
     # X, Y方向それぞれの摩擦力を返す
-    cosine_value = cosine_kb(movement_angle_)
-    sine_value = sine_kb(movement_angle_)
+    cosine_value = cosine_kdc(movement_angle_)
+    sine_value = sine_kdc(movement_angle_)
 
     # 0以上の時：+128して切り捨て、負の時：-128して切り捨て
-    if cosine_value > 0:
+    if cosine_value >= 0:
         friction_x = (multiple_32768(friction_coefficient_, cosine_value) + 128) // 256
     else:
         friction_x = (multiple_32768(friction_coefficient_, cosine_value) - 128) // 256
-    if sine_value > 0:
+    if sine_value >= 0:
         friction_y = (multiple_32768(friction_coefficient_, sine_value) + 128) // 256
     else:
         friction_y = (multiple_32768(friction_coefficient_, sine_value) - 128) // 256
@@ -277,9 +289,9 @@ if __name__ == "__main__":
     vy = 0x09AA
     vz = 0
     """
-    theta_yz = arctan_kb(mz, my)
-    sine_theta_yz = sine_kb(theta_yz)
-    cosine_theta_yz = cosine_kb(theta_yz)
+    theta_yz = arctan_kdc(mz, my)
+    sine_theta_yz = sine_kdc(theta_yz)
+    cosine_theta_yz = cosine_kdc(theta_yz)
 
     # 斜辺TBの長さを計算する
     tb_y = multiple_32768(my, sine_theta_yz) if my >= 0 else -multiple_32768(-my, sine_theta_yz)
@@ -287,9 +299,9 @@ if __name__ == "__main__":
     tb_len = tb_y + tb_z
 
     # 三角形TBOでθx'(角BTO)を求める
-    theta_x1 = arctan_kb(tb_len, mx)
-    sine_theta_x1 = sine_kb(theta_x1)
-    cosine_theta_x1 = cosine_kb(theta_x1)
+    theta_x1 = arctan_kdc(tb_len, mx)
+    sine_theta_x1 = sine_kdc(theta_x1)
+    cosine_theta_x1 = cosine_kdc(theta_x1)
 
     # 正規化法線ベクトルN(nx, ny, nz)を計算する
     nx = sine_theta_x1
