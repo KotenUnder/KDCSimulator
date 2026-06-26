@@ -82,8 +82,7 @@ def calculate_zoffset_fullslope(terrain_id_: int, inblock_x_: int, inblock_y_: i
 
     # 地形ID16未満、つまり単純斜面のみである場合はzoffsetそのもの出力
     if terrain_id_ < 16:
-        return zoffset
-
+        return zoffset % 0x10000
     # 基準点の高さを引く。この値はs16bitだが、のちに32bit扱いになるためu16と解釈される。
     else:
         return (zoffset - HOLE_HEIGHT_1_LEVEL) % 0x10000
