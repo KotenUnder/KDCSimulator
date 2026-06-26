@@ -2,6 +2,9 @@ import math
 import KDCTables
 import json
 
+# 定数
+HOLE_HEIGHT_1_LEVEL = 0x5A82
+
 
 class HoleData:
     def __init__(self, width_x_: int, width_y_:int, height_table_: list, terrain_table_: list,
@@ -47,16 +50,60 @@ def get_slopeId_from_terrainId(terrain_id_: int, inblock_id_: int) -> int:
         raise ValueError(f"terrain{terrain_id_} inblock{inblock_id_}")
 
 
-def get_zoffset_fullslope(slope_id_: int, inblock_x_: int, inblock_y_: int) -> int:
+def calculate_zoffset_partial(slope_id_: int, inblock_x_: int, inblock_y_: int) -> int:
     zoffset_index = 0
+
     # 最低点からの水平座標の差を求める。
-    if slope_id_ == 3:
-        zoffset_index += 32767 - inblock_x_
+    if slope_id_ == 0: # 傾斜ID=0 平坦の時 １段分の高さそのもの
+        return HOLE_HEIGHT_1_LEVEL
+    elif slope_id_ == 1: # 傾斜ID=1のとき
+        zoffset_index = inblock_y_
+    elif slope_id_ == 2:
+        zoffset_index = 32767 - inblock_x_
+    elif slope_id_ == 3:
+        zoffset_index = 32767 - inblock_y_
+    elif slope_id_ == 4:
+        zoffset_index = inblock_x_
 
     # 斜面上Z座標テーブル用インデックスの計算
     zoffset_index = zoffset_index // 128
 
     return KDCTables.KDC_Zoffset_table[zoffset_index]
+
+
+def calculate_zoffset_fullslope(terrain_id_: int, inblock_x_: int, inblock_y_: int) -> int:
+    # ブロック内区分を求める
+    inblock_id = calculate_inblock_id(inblock_x_, inblock_y_)
+    # 対応する傾斜IDを求める
+    slope_id = get_slopeId_from_terrainId(terrain_id_, inblock_id)
+
+    # 基準点(最低点)からの床Z座標を求める
+    zoffset = calculate_zoffset_partial(slope_id, inblock_x_, inblock_y_)
+
+    # 地形ID16未満、つまり単純斜面のみである場合はzoffsetそのもの出力
+    if terrain_id_ < 16:
+        return zoffset
+
+    # 基準点の高さを引く。この値はs16bitだが、のちに32bit扱いになるためu16と解釈される。
+    else:
+        return (zoffset - HOLE_HEIGHT_1_LEVEL) % 0x10000
+
+
+def calculate_air_resistance(vx_: int, vy_: int) ->tuple:
+    # 内部関数　空気抵抗を１変数について計算する。
+    def calculate_air_resistance_single(v_: int):
+        if v_ > 32767:
+            v_ = v_ - 0x10000
+        
+        if v_ >= 0:
+            return - ((v_ + 0x0080) // 0x0100)
+        else:
+            v_ = - v_
+            return (v_ + 0x0080) // 0x0100
+
+    # x, y成分それぞれ、内部関数を適用してtupleで返す。
+    return (calculate_air_resistance_single(vx_),
+            calculate_air_resistance_single(vy_))
 
 
 class UShort:
@@ -88,14 +135,14 @@ class UShort:
         return self.value
 
 
-def shot(power_: int, pitch_: int, yaw_: int, is_flying_: bool):
+def calculate_shotpower(power_: int, pitch_: int, yaw_: int, is_flying_: bool):
     if is_flying_:
         pass
     else:
         pass
 
 
-def inblock_area(x_: int, y_: int)-> int:
+def calculate_inblock_id(x_: int, y_: int)-> int:
     """
     ブロック内座標から、ブロック内区分を求める
     # 3 2
@@ -233,7 +280,7 @@ def arctan_kdc(x_: int, y_: int) -> int:
     return angle % 360
 
 
-def friction(friction_coefficient_: int, movement_angle_: int) -> int:
+def calculate_friction(friction_coefficient_: int, movement_angle_: int) -> int:
     # X, Y方向それぞれの摩擦力を返す
     cosine_value = cosine_kdc(movement_angle_)
     sine_value = sine_kdc(movement_angle_)
@@ -248,7 +295,7 @@ def friction(friction_coefficient_: int, movement_angle_: int) -> int:
     else:
         friction_y = (multiple_32768(friction_coefficient_, sine_value) - 128) // 256
     
-    return (friction_x, friction_y)
+    return (- friction_x, - friction_y)
 
 
 
@@ -272,7 +319,8 @@ def hex_to_int(hex_str: str) -> int:
     return int_val
 
 if __name__ == "__main__":
-    fric = friction(0x0866, 311)
+    fric = calculate_friction(0x0866, 311)
+    air = calculate_air_resistance(0xFD13, 0xF913)
     # Example usage
     mx = 0x20CC
     my = 0x5506
