@@ -135,11 +135,27 @@ class UShort:
         return self.value
 
 
-def calculate_shotpower(power_: int, pitch_: int, yaw_: int, is_flying_: bool):
+def get_potential_velocity(power_: int, is_flying_: bool, handicap_level_: int=0):
+    HANDICAP_COEFFICIENT_LIST = [0x1300]
+    if is_flying_:
+        base_power = KDCTables.KDC_power_popup_table[power_]
+    else:
+        base_power = KDCTables.KDC_power_grounder_table[power_]
+
+    return base_power * HANDICAP_COEFFICIENT_LIST[handicap_level_] // 0x4000
+
+
+
+def calculate_shotpower(potential_: int, pitch_: int, yaw_: int, is_flying_: bool):
+    """
+    パワー数値から
+    """
+    # ポテンシャル初速を取ってくる。フライかゴロかで値が異なる
     if is_flying_:
         pass
     else:
         pass
+
 
 
 def calculate_inblock_id(x_: int, y_: int)-> int:
@@ -278,6 +294,8 @@ def arctan_kdc(x_: int, y_: int) -> int:
 
     # angleを0-359の範囲に収める
     return angle % 360
+
+
 
 
 def calculate_friction(friction_coefficient_: int, movement_angle_: int) -> int:

@@ -8,3 +8,6 @@ KDC_arctan_table = kdc_table['arctan']
 KDC_slope_table = kdc_table['terrain_to_slope']
 
 KDC_Zoffset_table = kdc_table['z_offset']
+
+KDC_power_grounder_table = kdc_table['power_ground']
+KDC_power_popup_table = kdc_table['power_popup']
