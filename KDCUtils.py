@@ -1,5 +1,6 @@
 import math
 import KDCTables
+import yaml
 import json
 
 # 定数
@@ -316,6 +317,13 @@ def hex_to_int(hex_str: str) -> int:
     if int_val & (1 << (bit_length - 1)):
         int_val -= 1 << bit_length
     return int_val
+
+
+# ホールデータの読み込み
+
+
+
+
 
 if __name__ == "__main__":
     fric = calculate_friction(0x0866, 311)
