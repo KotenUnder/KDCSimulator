@@ -146,15 +146,30 @@ def get_potential_velocity(power_: int, is_flying_: bool, handicap_level_: int=0
 
 
 
-def calculate_shotpower(potential_: int, pitch_: int, yaw_: int, is_flying_: bool):
+def calculate_initial_velocity(potential_: int, pitch_: int, yaw_: int):
     """
-    パワー数値から
+    ポテンシャル初速・仰角・方位角から初速(Vx, Vy, Vz)を計算する。
     """
-    # ポテンシャル初速を取ってくる。フライかゴロかで値が異なる
-    if is_flying_:
-        pass
+    # Z速度と水平速度を確定させる
+    v_z = multiple_32768(potential_, sine_kdc(pitch_))
+    v_horizon = multiple_32768(potential_, cosine_kdc(pitch_))
+
+    # 水平速度をx, y方向に分解する。この時、誤差が出ないように０に近づける丸めにする
+    v_x_32bit = v_horizon * cosine_kdc(yaw_)
+    if v_x_32bit >= 0:
+        v_x = v_x_32bit // 0x8000
     else:
-        pass
+        v_x = - (- v_x_32bit // 0x8000)
+
+    v_y_32bit = v_horizon * sine_kdc(yaw_)
+    if v_y_32bit >= 0:
+        v_y = v_y_32bit // 0x8000
+    else:
+        v_y = - (- v_y_32bit // 0x8000)
+
+    return (v_x, v_y, v_z)
+
+
 
 
 
@@ -344,8 +359,8 @@ def hex_to_int(hex_str: str) -> int:
 
 
 if __name__ == "__main__":
-    fric = calculate_friction(0x0866, 311)
-    air = calculate_air_resistance(0xFD13, 0xF913)
+    shot = get_potential_velocity(60, False)
+    init = calculate_initial_velocity(shot, 0, 315)
     # Example usage
     mx = 0x20CC
     my = 0x5506
