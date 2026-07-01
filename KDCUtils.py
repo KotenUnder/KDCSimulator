@@ -2,10 +2,26 @@ import math
 import KDCTables
 import yaml
 import json
+from abc import ABC, abstractmethod
 
 # 定数
 HOLE_HEIGHT_1_LEVEL = 0x5A82
+HOLE_HEIGHT_BUMPER = 0x2D41 # これ以上なら通過、未満で衝突
 
+# 重力
+GRAVITY_DEFAULT = -64
+GRAVITY_TORNADO = -32
+GRAVITY_NEEDLE = -96
+GRAVITY_WHEEL = -112
+GRAVITY_STONE = -128
+
+# 初速ポテンシャル
+POTENTIAL_VELOCITY_BURNING = 8000
+POTENTIAL_VELOCITY_TORNADO = 3000
+
+# 仰角
+PITCH_DEFAULT = 60
+PITCH_HIGHJUMP = 65
 
 class HoleData:
     def __init__(self, width_x_: int, width_y_:int, height_table_: list, terrain_table_: list,
@@ -38,9 +54,18 @@ class HoleData:
     def getHeight(self, x_: int, y_: int) -> int:
         # 範囲外なら高さ0
         if self._checkRange(x_, y_):
-            return 0
+            return self._height_table[self._width_x * y_ + x_]
         else:
-            return 1
+            return 0
+
+    def getBumper(self, block_x_: int, block_y_: int) -> list:
+        # Y-方向、X+方向、Y+方向、X-方向の順に、バンパーの有無をbool listで返す
+        if self._checkRange(block_x_, block_y_):
+            value = self._bumper_table[self._width_x * block_y_ + block_x_]
+            return [value ^ 1 == 1, value ^ 2 == 2, value ^ 4 == 4, value ^ 8 == 8]
+        # 範囲外ならバンパーなし
+        else:
+            return [False, False, False, False]
 
 
 def get_slopeId_from_terrainId(terrain_id_: int, inblock_id_: int) -> int:
@@ -154,7 +179,7 @@ def calculate_initial_velocity(potential_: int, pitch_: int, yaw_: int):
     v_z = multiple_32768(potential_, sine_kdc(pitch_))
     v_horizon = multiple_32768(potential_, cosine_kdc(pitch_))
 
-    # 水平速度をx, y方向に分解する。この時、誤差が出ないように０に近づける丸めにする
+    # 水平速度をx, y方向に分解する。この時、正負で誤差が出ないように０に近づける丸めにする
     v_x_32bit = v_horizon * cosine_kdc(yaw_)
     if v_x_32bit >= 0:
         v_x = v_x_32bit // 0x8000
@@ -352,8 +377,47 @@ def hex_to_int(hex_str: str) -> int:
     return int_val
 
 
-# ホールデータの読み込み
+class BumperObstacle:
+    @abstractmethod
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        pass
 
+    def detect_collision(self, inblock_x1_: int, inblock_y1: int, inblock_x2_: int, inblock_y2_: int, z_diff_: int=0) -> bool:
+        # 領域が前後共に0or1で衝突なし、変化ありで衝突有
+        return (self.discriminate(inblock_x1_, inblock_y1) ^ self.discriminate(inblock_x2_, inblock_y2_)) == 1 and z_diff_ < HOLE_HEIGHT_BUMPER
+
+
+# カービィの状態
+class KirbyState:
+    def __init__(self):
+        # メンバー変数
+        # 座標
+        self.c_x = 0
+        self.c_y = 0
+        self.c_z = 0
+        # 速度
+        self.v_x = 0
+        self.v_y = 0
+        self.v_z = 0
+        # 角度
+        self.yaw = 0
+        # フライ状態かどうか
+        self.is_flying = False
+        # 重力
+        self.gravity = GRAVITY_DEFAULT
+        # コピー能力関連
+        # コピー使用可能状態か
+        self.ability_is_prepared = False
+        # 準備されているコピー能力の種類
+        self.ability_prepared_id = 0
+        # 現在使用されているコピー能力
+        self.ability_used_id = 0
+        self.ability_counter = 0 # フレーム数カウンター
+        self.ability_freespace1 = 0 # 自由領域、コピー能力によって用途が異なる。
+        self.ability_freespace2 = 0
+        self.ability_freespace3 = 0
+        self.ability_freespace4 = 0
+        
 
 
 
