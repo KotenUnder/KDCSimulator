@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import math
 import KDCTables
 import yaml
 import json
 from abc import ABC, abstractmethod
+
 
 # 定数
 HOLE_HEIGHT_1_LEVEL = 0x5A82
@@ -377,7 +380,13 @@ def hex_to_int(hex_str: str) -> int:
     return int_val
 
 
-class BumperObstacle:
+class Obstacle(ABC):
+    @abstractmethod
+    def process(self, kirby_state_: 'KirbyState', hole_data_: 'HoleData') -> None:
+        pass
+
+
+class BumperObstacle(Obstacle, ABC):
     @abstractmethod
     def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
         pass
@@ -386,6 +395,84 @@ class BumperObstacle:
         # 領域が前後共に0or1で衝突なし、変化ありで衝突有
         return (self.discriminate(inblock_x1_, inblock_y1) ^ self.discriminate(inblock_x2_, inblock_y2_)) == 1 and z_diff_ < HOLE_HEIGHT_BUMPER
 
+    @abstractmethod
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        pass
+
+
+    def process(self, kirby_state_: KirbyState, kirby_next_: KirbyState, hole_data_: 'HoleData') -> None:
+        # 次のフレームで、ブロック間移動があるかどうかのチェック
+        # 今回はブロック間移動が起こらない者とする
+        # TODO ブロック間移動の実装
+        if self.detect_collision(kirby_state_.c_x, kirby_state_.c_y,
+                                 kirby_next_.c_x, kirby_next_.c_y, 0):
+            # 衝突した場合、速度を反射させる
+            kirby_next_.v_x, kirby_next_.v_y = self.bump(kirby_next_.v_x, kirby_next_.v_y)
+            # 衝突した場合、カービィの座標を元に戻す
+            kirby_next_.c_x = kirby_state_.c_x
+            kirby_next_.c_y = kirby_state_.c_y
+            kirby_next_.c_z = kirby_state_.c_z
+
+            # TODO 対応するバンパーを光らせる 衝突音を鳴らす
+
+            # TODO がんばれ有効時の処理
+
+            # TODO ブレーキ有効時の処理
+        return 0
+
+
+
+class Bumper0x28(BumperObstacle):
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        # 28番バンパーの判定
+        return inblock_x_ >= 0x8000
+
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        return (-v_x_, v_y_)
+    
+
+class Bumper0x29(BumperObstacle):
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        # 29番バンパーの判定
+        return inblock_y_ >= 0x8000
+
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        return (v_x_, -v_y_)
+    
+class Bumper0x2A(BumperObstacle):
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        # 2A番バンパーの判定
+        return inblock_x_ + inblock_y_ >= 0x8000
+
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        return (-v_y_, -v_x_)
+
+
+class Bumper0x2B(BumperObstacle):
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        # 2B番バンパーの判定
+        return inblock_y_ - inblock_x_ >= 0x8000
+
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        return (v_y_, v_x_)
+
+
+class Bumper0x2C(BumperObstacle):
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        # 2C番バンパーの判定
+        return inblock_x_ + inblock_y_ >= 0x18000
+
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        return (-v_y_, -v_x_)
+    
+
+class Bumper0x2D(BumperObstacle):
+    def discriminate(self, inblock_x_: int, inblock_y_: int) -> bool:
+        # 2D番バンパーの判定
+        return inblock_y_ - inblock_x_ >= - 0x8000
+
+    def bump(self, v_x_: int, v_y_: int) -> tuple:
+        return (v_y_, v_x_)
 
 # カービィの状態
 class KirbyState:
@@ -417,7 +504,12 @@ class KirbyState:
         self.ability_freespace2 = 0
         self.ability_freespace3 = 0
         self.ability_freespace4 = 0
-        
+
+    def getBlockX(self) -> int:
+        return self.c_x // 0x10000
+
+    def getBlockY(self) -> int:
+        return self.c_y // 0x10000
 
 
 

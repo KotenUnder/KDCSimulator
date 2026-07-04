@@ -1,12 +1,16 @@
 import KDCUtils
 
 
-def MainLoop():
+def MainLoop(hole_data_: 'KDCUtils.HoleData', kirby_state_: 'KDCUtils.KirbyState'):
 
     # 1.移動予定座標の計算
     # $81/8973  -> $81/9280 移動先座標を計算する。
-    # 
+    kirby_next = kirby_state_.copy()
+    kirby_next.c_x += kirby_state_.v_x
+    kirby_next.c_y += kirby_state_.v_y
+    kirby_next.c_z += kirby_state_.v_z
     # $81/8977 現在のX, Y速度から、進行方向(yaw)を計算する。
+    kirby_next.yaw = KDCUtils.arctan_kdc(kirby_state_.v_x, kirby_state_.v_y)
 
     # --$81/9738 進行方向に対応する、32区分、16区分インデックスを取得する。
 
