@@ -69,6 +69,13 @@ class HoleData:
         # 範囲外ならバンパーなし
         else:
             return [False, False, False, False]
+        
+    def getBlockId(self, block_x_: int, block_y_: int) -> int:
+        # 範囲外ならブロック番号-1 ※0は(0, 0)地点のブロック番号なので、-1で範囲外を表す
+        if self._checkRange(block_x_, block_y_):
+            return self._width_x * block_y_ + block_x_
+        else:
+            return -1
 
 
 def get_slopeId_from_terrainId(terrain_id_: int, inblock_id_: int) -> int:
@@ -406,6 +413,11 @@ class BumperObstacle(Obstacle, ABC):
         # TODO ブロック間移動の実装
         if self.detect_collision(kirby_state_.c_x, kirby_state_.c_y,
                                  kirby_next_.c_x, kirby_next_.c_y, 0):
+            # 能力使用中かどうかで場合分け
+            # UFOなら停止する
+            # バーニングなら、Z速度を設定し、フライ状態にする
+            # トルネードなら、速度の絶対値を保存、カウンターに8を設定する、速度４倍化
+
             # 衝突した場合、速度を反射させる
             kirby_next_.v_x, kirby_next_.v_y = self.bump(kirby_next_.v_x, kirby_next_.v_y)
             # 衝突した場合、カービィの座標を元に戻す
@@ -418,6 +430,8 @@ class BumperObstacle(Obstacle, ABC):
             # TODO がんばれ有効時の処理
 
             # TODO ブレーキ有効時の処理
+
+
         return 0
 
 
@@ -488,6 +502,12 @@ class KirbyState:
         self.v_z = 0
         # 角度
         self.yaw = 0
+        # ブロック内区分・ブロック番号・オブジェクトなど
+        self.inblock_area_id = 0
+        self.terrain_id = 0
+        self.slope_id = 0
+        self.block_id = 0
+        self.obstacle_id = 0
         # フライ状態かどうか
         self.is_flying = False
         # 重力
@@ -510,7 +530,15 @@ class KirbyState:
 
     def getBlockY(self) -> int:
         return self.c_y // 0x10000
-
+    
+    def setBlockInfo(self, hole_data_: 'HoleData'):
+        block_x = self.getBlockX()
+        block_y = self.getBlockY()
+        self.block_id = hole_data_.getBlockId(block_x, block_y)
+        self.terrain_id = hole_data_.getTerrain(block_x, block_y)
+        self.obstacle_id = hole_data_.getObject(block_x, block_y)
+        self.inblock_area_id = calculate_inblock_id(self.c_x % 0x10000, self.c_y % 0x10000)
+        self.slope_id = get_slopeId_from_terrainId(self.terrain_id, self.inblock_area_id)
 
 
 
